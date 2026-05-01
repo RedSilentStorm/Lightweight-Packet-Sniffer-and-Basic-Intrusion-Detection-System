@@ -1,0 +1,124 @@
+# =============================
+# OS-generated files
+# =============================
+.DS_Store
+.DS_Store?
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Spotlight-V100/
+.Trashes/
+._*
+
+# =============================
+# Editor / IDE settings
+# Keep these out of the repo so two developers do not overwrite each other
+# with local workspace preferences.
+# =============================
+.vscode/
+.idea/
+.vs/
+.history/
+*.code-workspace
+*.sublime-workspace
+*.sublime-project
+
+# Swap / backup files
+*~
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig
+*.rej
+.~lock.*
+
+# =============================
+# Build outputs
+# =============================
+bin/
+build/
+out/
+dist/
+obj/
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.d
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+compile_commands.json
+
+# =============================
+# Logs and runtime artifacts
+# =============================
+logs/*
+!logs/.gitkeep
+*.log
+*.pid
+*.seed
+*.stackdump
+core
+core.*
+
+# =============================
+# C / C++ / libpcap generated data
+# =============================
+*.pcapng
+# Uncomment if you want to ignore all capture files by default:
+# *.pcap
+
+# =============================
+# Python helper scripts and tooling
+# =============================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.venv/
+venv/
+env/
+ENV/
+
+# =============================
+# Generated report / documentation artifacts
+# =============================
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+
+# =============================
+# Miscellaneous temporary files
+# =============================
+*.swp
+*.swo
+*.DS_Store
+*.cache
+.cache/
