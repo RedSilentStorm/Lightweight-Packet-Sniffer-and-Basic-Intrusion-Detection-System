@@ -11,6 +11,8 @@
 #include "../include/ids_tracker.h"
 #include "../include/packet_parser.h"
 #include "../include/parse_utils.h"
+#include "../include/alert_export.h"
+#include "../include/perf_metrics.h"
 
 struct app_config {
     int mode;
@@ -25,6 +27,10 @@ struct app_state {
     struct ids_tracker tracker;
     struct alert_logger logger;
     int packet_count;
+    FILE *export_csv;
+    FILE *export_json;
+    int json_first;
+    struct perf_stats perf;
 };
 
 static void usage(const char *program_name) {
@@ -109,6 +115,7 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
     time_t window_start = 0;
 
     state->packet_count++;
+    perf_stats_record_packet(&state->perf, pkthdr->len);
 
     if (!parse_packet_info(pkthdr, packet, &info)) {
         return;
@@ -132,13 +139,19 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
                info.destination_ip_text);
     }
 
-    if (ids_tracker_record_packet(
+    struct timespec _t0, _t1;
+    clock_gettime(CLOCK_MONOTONIC, &_t0);
+    int alerted = ids_tracker_record_packet(
             &state->tracker,
             info.source_ip,
             (time_t)pkthdr->ts.tv_sec,
             &count_in_window,
             &window_start
-        )) {
+        );
+    clock_gettime(CLOCK_MONOTONIC, &_t1);
+    unsigned int processing_latency_us = (unsigned int)((_t1.tv_sec - _t0.tv_sec) * 1000000u + (_t1.tv_nsec - _t0.tv_nsec) / 1000u);
+
+    if (alerted) {
         char message[320];
         unsigned int elapsed = (unsigned int)((time_t)pkthdr->ts.tv_sec - window_start);
 
@@ -173,6 +186,26 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
         }
 
         alert_logger_log(&state->logger, message);
+
+        /* Structured export */
+        if (state->export_csv != NULL) {
+            struct alert_record rec;
+            rec.timestamp = (time_t)pkthdr->ts.tv_sec;
+            rec.source_ip = info.source_ip;
+            rec.source_port = info.source_port;
+            rec.destination_ip = info.destination_ip;
+            rec.destination_port = info.destination_port;
+            rec.protocol = info.protocol;
+            rec.packet_count = count_in_window;
+            rec.threshold = state->config.threshold;
+            rec.window_seconds = state->config.window_seconds;
+            rec.elapsed_seconds = (unsigned int)((time_t)pkthdr->ts.tv_sec - window_start);
+            alert_export_csv_record(state->export_csv, &rec);
+            alert_export_json_record(state->export_json, &rec, state->json_first);
+            state->json_first = 0;
+        }
+
+        perf_stats_record_alert(&state->perf, processing_latency_us);
     }
 }
 
@@ -185,6 +218,14 @@ static int run_capture(const struct app_config *config) {
     state.config = *config;
 
     ids_tracker_init(&state.tracker, state.config.threshold, state.config.window_seconds);
+
+    /* init performance stats and exports */
+    perf_stats_init(&state.perf);
+    state.export_csv = fopen("logs/alerts.csv", "a");
+    state.export_json = fopen("logs/alerts.json", "a");
+    state.json_first = 0;
+    if (state.export_csv) alert_export_csv_header(state.export_csv);
+    if (state.export_json) { alert_export_json_header(state.export_json); state.json_first = 1; }
 
     if (alert_logger_open(&state.logger, "logs/alerts.log") != 0) {
         fprintf(stderr, "Failed to open logs/alerts.log for writing.\n");
@@ -221,6 +262,21 @@ static int run_capture(const struct app_config *config) {
 
     pcap_close(handle);
     alert_logger_close(&state.logger);
+    
+    /* Close JSON export properly */
+    if (state.export_json != NULL) {
+        alert_export_json_footer(state.export_json);
+        fclose(state.export_json);
+    }
+    if (state.export_csv != NULL) {
+        fclose(state.export_csv);
+    }
+    
+    /* End performance measurement and report */
+    perf_stats_end(&state.perf);
+    perf_stats_print_report(&state.perf);
+    perf_stats_export_csv(&state.perf, "logs/perf_metrics.csv");
+    
     printf("Run complete. Processed packets: %d\n", state.packet_count);
     return 0;
 }

@@ -122,3 +122,5 @@ ENV/
 *.DS_Store
 *.cache
 .cache/
+eval_report.json
+eval_results/
