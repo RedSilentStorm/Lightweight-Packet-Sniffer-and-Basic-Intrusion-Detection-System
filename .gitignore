@@ -126,3 +126,4 @@ ENV/
 .cache/
 eval_report.json
 eval_results/
+data/*
