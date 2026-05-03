@@ -4,10 +4,14 @@
 #include <pcap/pcap.h>
 #include <stdint.h>
 
+#include "ids_tracker.h"
+
 struct parsed_packet {
     int is_ipv4;
     int is_ipv6;
     int is_supported_transport;
+    struct ids_address_key source_address;
+    struct ids_address_key destination_address;
     uint32_t source_ip;
     uint32_t destination_ip;
     uint8_t source_ipv6[16];

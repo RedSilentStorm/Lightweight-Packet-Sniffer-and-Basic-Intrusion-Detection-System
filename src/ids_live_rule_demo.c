@@ -27,6 +27,7 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
     size_t offset = 0;
     char src_ip[INET_ADDRSTRLEN];
     char dst_ip[INET_ADDRSTRLEN];
+    struct ids_address_key source_key;
     unsigned int count_in_window = 0;
     time_t window_start = 0;
 
@@ -75,6 +76,10 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
         dst_ip[sizeof(dst_ip) - 1] = '\0';
     }
 
+    memset(&source_key, 0, sizeof(source_key));
+    source_key.family = AF_INET;
+    memcpy(source_key.bytes, &ip->source_ip, 4);
+
     if (ip->protocol == IP_PROTOCOL_TCP) {
         const struct tcp_header *tcp = NULL;
 
@@ -101,7 +106,7 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
 
     if (ids_tracker_record_packet(
             &state->tracker,
-            ip->source_ip,
+            &source_key,
             (time_t)pkthdr->ts.tv_sec,
             &count_in_window,
             &window_start

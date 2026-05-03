@@ -5,11 +5,13 @@
 #include <time.h>
 #include <stdio.h>
 
+#include "ids_tracker.h"
+
 struct alert_record {
     time_t timestamp;
-    uint32_t source_ip;
+    struct ids_address_key source_address;
     uint16_t source_port;
-    uint32_t destination_ip;
+    struct ids_address_key destination_address;
     uint16_t destination_port;
     uint8_t protocol;
     unsigned int packet_count;

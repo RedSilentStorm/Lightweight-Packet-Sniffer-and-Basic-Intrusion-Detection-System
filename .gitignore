@@ -63,6 +63,8 @@ compile_commands.json
 # =============================
 logs/*
 !logs/.gitkeep
+reports/*
+!reports/.gitkeep
 *.log
 *.pid
 *.seed

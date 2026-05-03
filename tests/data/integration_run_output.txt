@@ -3,5 +3,5 @@ UDP 10.0.0.9:40000 -> 10.0.0.1:53
 UDP 10.0.0.9:40001 -> 10.0.0.1:53
 UDP 10.0.0.9:40002 -> 10.0.0.1:53
 UDP 10.0.0.9:40003 -> 10.0.0.1:53
-[2026-04-22 23:33:30] ALERT: source=10.0.0.9 protocol=UDP src_port=40003 dst=10.0.0.1:53 count=4 threshold=3 elapsed=3s window=5s
+[2026-05-03 19:34:05] ALERT: source=10.0.0.9 protocol=UDP src_port=40003 dst=10.0.0.1:53 count=4 threshold=3 elapsed=3s window=5s
 Run complete. Processed packets: 4

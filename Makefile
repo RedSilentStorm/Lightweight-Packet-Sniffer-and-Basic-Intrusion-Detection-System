@@ -1,9 +1,9 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -std=c11 -D_DEFAULT_SOURCE -Iinclude
-LDFLAGS = -lpcap
+LDFLAGS = -lpcap -lm
 
 APP_TARGET = bin/packet_ids
-APP_SRC = src/packet_ids_cli.c src/ids_tracker.c src/alert_logger.c src/alert_export.c src/parse_utils.c src/packet_parser.c src/capture_source.c src/bpf_filter.c src/perf_metrics.c
+APP_SRC = src/packet_ids_cli.c src/ids_tracker.c src/alert_logger.c src/alert_export.c src/parse_utils.c src/packet_parser.c src/capture_source.c src/bpf_filter.c src/perf_metrics.c src/rule_engine.c
 
 SETUP_CHECK_TARGET = bin/pcap_setup_check
 SETUP_CHECK_SRC = src/pcap_setup_check.c
@@ -17,12 +17,14 @@ IDS_RULE_DEMO_TARGET = bin/ids_live_rule_demo
 IDS_RULE_DEMO_SRC = src/ids_live_rule_demo.c src/ids_tracker.c src/alert_logger.c src/alert_export.c src/parse_utils.c src/bpf_filter.c
 TRACKER_TEST_TARGET = bin/ids_tracker_test
 TRACKER_TEST_SRC = tests/ids_tracker_test.c src/ids_tracker.c
+RULE_ENGINE_TEST_TARGET = bin/rule_engine_test
+RULE_ENGINE_TEST_SRC = tests/rule_engine_test.c src/rule_engine.c
 REPLAY_DEMO_TARGET = bin/ids_live_or_pcap
-REPLAY_DEMO_SRC = src/ids_live_or_pcap.c src/ids_tracker.c src/alert_logger.c src/alert_export.c src/parse_utils.c src/packet_parser.c src/capture_source.c src/bpf_filter.c src/perf_metrics.c
+REPLAY_DEMO_SRC = src/ids_live_or_pcap.c src/ids_tracker.c src/alert_logger.c src/alert_export.c src/parse_utils.c src/packet_parser.c src/capture_source.c src/bpf_filter.c src/perf_metrics.c src/rule_engine.c
 INTEGRATION_TEST_TARGET = bin/pcap_integration_test
 INTEGRATION_TEST_SRC = tests/pcap_integration_test.c
 
-.PHONY: all app setup_check list_interfaces capture_basic parse_headers_demo ids_rule_demo tracker_test replay_demo integration_test clean
+.PHONY: all app setup_check list_interfaces capture_basic parse_headers_demo ids_rule_demo tracker_test rule_engine_test replay_demo integration_test clean
 
 all: app
 
@@ -39,6 +41,8 @@ parse_headers_demo: $(PARSE_DEMO_TARGET)
 ids_rule_demo: $(IDS_RULE_DEMO_TARGET)
 
 tracker_test: $(TRACKER_TEST_TARGET)
+
+rule_engine_test: $(RULE_ENGINE_TEST_TARGET)
 
 replay_demo: $(REPLAY_DEMO_TARGET)
 
@@ -71,7 +75,11 @@ $(IDS_RULE_DEMO_TARGET): $(IDS_RULE_DEMO_SRC)
 
 $(TRACKER_TEST_TARGET): $(TRACKER_TEST_SRC)
 	@mkdir -p bin
-	$(CC) $(CFLAGS) $(TRACKER_TEST_SRC) -o $(TRACKER_TEST_TARGET)
+	$(CC) $(CFLAGS) $(TRACKER_TEST_SRC) -o $(TRACKER_TEST_TARGET) $(LDFLAGS)
+
+$(RULE_ENGINE_TEST_TARGET): $(RULE_ENGINE_TEST_SRC)
+	@mkdir -p bin
+	$(CC) $(CFLAGS) $(RULE_ENGINE_TEST_SRC) -o $(RULE_ENGINE_TEST_TARGET) $(LDFLAGS)
 
 $(REPLAY_DEMO_TARGET): $(REPLAY_DEMO_SRC)
 	@mkdir -p bin

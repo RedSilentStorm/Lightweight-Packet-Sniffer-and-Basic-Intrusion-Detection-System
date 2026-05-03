@@ -7,10 +7,12 @@
 #include <time.h>
 
 #include "../include/alert_logger.h"
+#include "../include/bpf_filter.h"
 #include "../include/capture_source.h"
 #include "../include/ids_tracker.h"
 #include "../include/packet_parser.h"
 #include "../include/parse_utils.h"
+#include "../include/rule_engine.h"
 #include "../include/alert_export.h"
 #include "../include/perf_metrics.h"
 
@@ -20,11 +22,15 @@ struct app_config {
     unsigned int threshold;
     unsigned int window_seconds;
     int max_packets;
+    const char *bpf_filter;
+    int sliding;
+    struct ids_rule_engine rules;
 };
 
 struct app_state {
     struct app_config config;
     struct ids_tracker tracker;
+    struct ids_tracker rule_trackers[IDS_MAX_RULES];
     struct alert_logger logger;
     int packet_count;
     FILE *export_csv;
@@ -37,8 +43,8 @@ static void usage(const char *program_name) {
     fprintf(stderr,
             "Usage:\n"
             "  %s list\n"
-            "  %s live <interface> <threshold> <window_seconds> [packet_count]\n"
-            "  %s replay <pcap_file> <threshold> <window_seconds> [packet_count]\n"
+            "  %s live <interface> <threshold> <window_seconds> [packet_count] [--filter <bpf_expr>] [--sliding] [--rule <proto:port:threshold>]...\n"
+            "  %s replay <pcap_file> <threshold> <window_seconds> [packet_count] [--filter <bpf_expr>] [--sliding] [--rule <proto:port:threshold>]...\n"
             "  %s test\n",
             program_name,
             program_name,
@@ -84,7 +90,10 @@ static int parse_capture_args(
     int mode,
     struct app_config *out
 ) {
-    if (argc < 5 || argc > 6) {
+    int i = 5;
+    int packet_count_set = 0;
+
+    if (argc < 5) {
         usage(argv[0]);
         return 0;
     }
@@ -92,17 +101,61 @@ static int parse_capture_args(
     out->mode = mode;
     out->source = argv[2];
     out->max_packets = 100;
+    out->bpf_filter = NULL;
+    out->sliding = 0;
+    ids_rule_engine_init(&out->rules);
 
     if (!parse_positive_uint(argv[3], &out->threshold) || !parse_positive_uint(argv[4], &out->window_seconds)) {
         fprintf(stderr, "threshold and window_seconds must be positive integers within range.\n");
         return 0;
     }
 
-    if (argc == 6) {
-        if (!parse_positive_int(argv[5], &out->max_packets)) {
-            fprintf(stderr, "packet_count must be a positive integer within range.\n");
-            return 0;
+    while (i < argc) {
+        if (strcmp(argv[i], "--filter") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "--filter requires a BPF expression.\n");
+                return 0;
+            }
+
+            out->bpf_filter = argv[i + 1];
+            i += 2;
+            continue;
         }
+
+        if (strcmp(argv[i], "--sliding") == 0) {
+            out->sliding = 1;
+            i++;
+            continue;
+        }
+
+        if (strcmp(argv[i], "--rule") == 0) {
+            if (i + 1 >= argc) {
+                fprintf(stderr, "--rule requires a value like tcp:53:10 (proto:port:threshold).\n");
+                return 0;
+            }
+
+            if (!ids_rule_engine_add_from_spec(&out->rules, argv[i + 1])) {
+                fprintf(stderr, "Invalid --rule '%s'. Expected proto:port:threshold (e.g., tcp:53:10).\n", argv[i + 1]);
+                return 0;
+            }
+
+            i += 2;
+            continue;
+        }
+
+        if (!packet_count_set) {
+            if (!parse_positive_int(argv[i], &out->max_packets)) {
+                fprintf(stderr, "packet_count must be a positive integer within range.\n");
+                return 0;
+            }
+
+            packet_count_set = 1;
+            i++;
+            continue;
+        }
+
+        fprintf(stderr, "Unexpected argument: %s\n", argv[i]);
+        return 0;
     }
 
     return 1;
@@ -112,6 +165,8 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
     struct app_state *state = (struct app_state *)user_data;
     struct parsed_packet info;
     unsigned int count_in_window = 0;
+    unsigned int active_threshold = state->config.threshold;
+    int matched_rule = -1;
     time_t window_start = 0;
 
     state->packet_count++;
@@ -121,7 +176,7 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
         return;
     }
 
-    if (!info.is_ipv4) {
+    if (!info.is_ipv4 && !info.is_ipv6) {
         return;
     }
 
@@ -140,10 +195,24 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
     }
 
     struct timespec _t0, _t1;
+    struct ids_tracker *active_tracker = &state->tracker;
+
+    matched_rule = ids_rule_engine_match(
+        &state->config.rules,
+        info.protocol,
+        info.source_port,
+        info.destination_port
+    );
+
+    if (matched_rule >= 0) {
+        active_tracker = &state->rule_trackers[matched_rule];
+        active_threshold = state->config.rules.rules[matched_rule].threshold;
+    }
+
     clock_gettime(CLOCK_MONOTONIC, &_t0);
     int alerted = ids_tracker_record_packet(
-            &state->tracker,
-            info.source_ip,
+            active_tracker,
+            &info.source_address,
             (time_t)pkthdr->ts.tv_sec,
             &count_in_window,
             &window_start
@@ -166,7 +235,7 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
                 info.destination_ip_text,
                 info.destination_port,
                 count_in_window,
-                state->config.threshold,
+                active_threshold,
                 elapsed,
                 state->config.window_seconds
             );
@@ -179,7 +248,7 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
                 packet_protocol_name(info.protocol),
                 info.destination_ip_text,
                 count_in_window,
-                state->config.threshold,
+                active_threshold,
                 elapsed,
                 state->config.window_seconds
             );
@@ -191,13 +260,13 @@ static void packet_handler(unsigned char *user_data, const struct pcap_pkthdr *p
         if (state->export_csv != NULL) {
             struct alert_record rec;
             rec.timestamp = (time_t)pkthdr->ts.tv_sec;
-            rec.source_ip = info.source_ip;
+            rec.source_address = info.source_address;
             rec.source_port = info.source_port;
-            rec.destination_ip = info.destination_ip;
+            rec.destination_address = info.destination_address;
             rec.destination_port = info.destination_port;
             rec.protocol = info.protocol;
             rec.packet_count = count_in_window;
-            rec.threshold = state->config.threshold;
+            rec.threshold = active_threshold;
             rec.window_seconds = state->config.window_seconds;
             rec.elapsed_seconds = (unsigned int)((time_t)pkthdr->ts.tv_sec - window_start);
             alert_export_csv_record(state->export_csv, &rec);
@@ -218,6 +287,16 @@ static int run_capture(const struct app_config *config) {
     state.config = *config;
 
     ids_tracker_init(&state.tracker, state.config.threshold, state.config.window_seconds);
+    if (state.config.sliding) {
+        ids_tracker_set_sliding(&state.tracker, 1);
+    }
+
+    for (size_t i = 0; i < state.config.rules.count; i++) {
+        ids_tracker_init(&state.rule_trackers[i], state.config.rules.rules[i].threshold, state.config.window_seconds);
+        if (state.config.sliding) {
+            ids_tracker_set_sliding(&state.rule_trackers[i], 1);
+        }
+    }
 
     /* init performance stats and exports */
     perf_stats_init(&state.perf);
@@ -239,6 +318,15 @@ static int run_capture(const struct app_config *config) {
         return 1;
     }
 
+    if (state.config.bpf_filter != NULL) {
+        if (apply_bpf_filter(handle, state.config.bpf_filter) != 0) {
+            fprintf(stderr, "Failed to apply BPF filter: %s\n", state.config.bpf_filter);
+            pcap_close(handle);
+            alert_logger_close(&state.logger);
+            return 1;
+        }
+    }
+
     if (state.config.mode == CAPTURE_MODE_LIVE) {
         printf("Running live capture on '%s' (threshold=%u, window=%us, packets=%d)\n",
                state.config.source,
@@ -251,6 +339,14 @@ static int run_capture(const struct app_config *config) {
                state.config.threshold,
                state.config.window_seconds,
                state.config.max_packets);
+    }
+
+    if (state.config.bpf_filter != NULL) {
+        printf("Applying BPF filter: %s\n", get_filter_description(state.config.bpf_filter));
+    }
+
+    if (state.config.rules.count > 0) {
+        printf("Loaded %zu IDS override rule(s).\n", state.config.rules.count);
     }
 
     if (pcap_loop(handle, state.config.max_packets, packet_handler, (unsigned char *)&state) == -1) {
@@ -285,32 +381,41 @@ static int run_self_test(void) {
     struct ids_tracker tracker;
     uint32_t ip_a = inet_addr("10.1.1.10");
     uint32_t ip_b = inet_addr("10.1.1.20");
+    struct ids_address_key key_a;
+    struct ids_address_key key_b;
     unsigned int count = 0;
     time_t window_start = 0;
     int alerts = 0;
 
     ids_tracker_init(&tracker, 3, 5);
 
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 100, &count, &window_start);
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 101, &count, &window_start);
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 102, &count, &window_start);
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 103, &count, &window_start);
+    memset(&key_a, 0, sizeof(key_a));
+    memset(&key_b, 0, sizeof(key_b));
+    key_a.family = AF_INET;
+    key_b.family = AF_INET;
+    memcpy(key_a.bytes, &ip_a, 4);
+    memcpy(key_b.bytes, &ip_b, 4);
+
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 100, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 101, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 102, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 103, &count, &window_start);
 
     if (alerts != 1 || count != 4 || window_start != 100) {
         fprintf(stderr, "Self-test failed: threshold crossing did not match expected behavior.\n");
         return 1;
     }
 
-    alerts += ids_tracker_record_packet(&tracker, ip_b, 103, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_b, 103, &count, &window_start);
     if (count != 1) {
         fprintf(stderr, "Self-test failed: independent source counter mismatch.\n");
         return 1;
     }
 
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 106, &count, &window_start);
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 107, &count, &window_start);
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 108, &count, &window_start);
-    alerts += ids_tracker_record_packet(&tracker, ip_a, 109, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 106, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 107, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 108, &count, &window_start);
+    alerts += ids_tracker_record_packet(&tracker, &key_a, 109, &count, &window_start);
 
     if (alerts != 2 || count != 4 || window_start != 106) {
         fprintf(stderr, "Self-test failed: window reset behavior mismatch.\n");

@@ -55,6 +55,18 @@ def gen_high_rate():
     
     return packets
 
+def gen_normal():
+    """Generate low-rate normal traffic unlikely to trigger IDS."""
+    packets = []
+    t = time.time()
+
+    for i in range(8):
+        src_octet = 10 + i
+        pkt = make_eth_ipv4_udp(f'192.168.1.{src_octet}', '10.0.0.1', 41000 + i, 53, b'q')
+        packets.append((t + i * 1.2, pkt))
+
+    return packets
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('output')
@@ -63,6 +75,6 @@ if __name__ == '__main__':
     if args.type == 'high-rate':
         pkts = gen_high_rate()
     else:
-        pkts = gen_high_rate()
+        pkts = gen_normal()
     write_pcap(args.output, pkts)
     print(f'Wrote {len(pkts)} packets to {args.output}')

@@ -31,6 +31,9 @@ int parse_packet_info(const struct pcap_pkthdr *pkthdr, const unsigned char *pac
 
     eth = (const struct ethernet_header *)packet;
     ether_type = ntohs(eth->ether_type);
+
+    memset(&out->source_address, 0, sizeof(out->source_address));
+    memset(&out->destination_address, 0, sizeof(out->destination_address));
     
     /* Handle IPv6 (basic support - just capture addresses) */
     if (ether_type == 0x86dd) {
@@ -43,8 +46,12 @@ int parse_packet_info(const struct pcap_pkthdr *pkthdr, const unsigned char *pac
         ipv6_header = packet + offset;
         
         out->is_ipv6 = 1;
+        out->source_address.family = AF_INET6;
+        out->destination_address.family = AF_INET6;
         memcpy(out->source_ipv6, ipv6_header + 8, 16);
         memcpy(out->destination_ipv6, ipv6_header + 24, 16);
+        memcpy(out->source_address.bytes, out->source_ipv6, 16);
+        memcpy(out->destination_address.bytes, out->destination_ipv6, 16);
         out->protocol = ipv6_header[6];  /* Next Header field */
         
         if (inet_ntop(AF_INET6, out->source_ipv6, out->source_ip_text, sizeof(out->source_ip_text)) == NULL) {
@@ -101,6 +108,10 @@ int parse_packet_info(const struct pcap_pkthdr *pkthdr, const unsigned char *pac
     }
 
     out->is_ipv4 = 1;
+    out->source_address.family = AF_INET;
+    out->destination_address.family = AF_INET;
+    memcpy(out->source_address.bytes, &ip->source_ip, 4);
+    memcpy(out->destination_address.bytes, &ip->destination_ip, 4);
     out->source_ip = ip->source_ip;
     out->destination_ip = ip->destination_ip;
     out->protocol = ip->protocol;
