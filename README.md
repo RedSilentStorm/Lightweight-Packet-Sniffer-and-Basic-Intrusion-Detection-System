@@ -176,3 +176,21 @@ Outputs:
 - `proto`: `tcp`, `udp`, `icmp`, `any`, or numeric protocol id
 - `port`: destination/source port number (`1..65535`) or `any`
 - `threshold`: positive integer threshold for matching traffic
+
+## AI Quick Prerequisites
+
+- Ensure your system has `python3-venv` and `python3-pip` installed if you want to use a virtual environment and `pip`:
+
+```bash
+sudo apt update
+sudo apt install python3-venv python3-pip
+```
+
+If you cannot install system packages, use `python3 -m pip install --user -r requirements.txt` instead of creating a virtualenv.
+
+See `docs/AI.md` for corrected CLI examples for `tools/preprocess_cic.py` and `tools/cic_ai.py`.
+
+## AI Usage
+
+Offline AI preprocessing, training, scoring and evaluation are available. See [docs/AI.md](docs/AI.md) for full commands and paths to model and report artifacts.
+

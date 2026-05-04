@@ -125,4 +125,14 @@ ENV/
 *.cache
 .cache/
 eval_report.json
-eval_results/
+eval_results/data/dataset/
+data/dataset/
+data/processed/
+data/models/
+reports/
+data/processed/
+data/models/
+reports/
+data/processed/
+data/models/
+reports/
