@@ -183,7 +183,7 @@ def evaluate_scores(scores: np.ndarray, labels: np.ndarray, threshold: float) ->
 
 
 def tune_threshold(scores: np.ndarray, labels: np.ndarray, min_recall: float) -> tuple[float, dict, str]:
-    percentiles = [p / 10.0 for p in range(700, 996, 5)]  # 70.0 .. 99.5
+    percentiles = [p / 10.0 for p in range(100, 996, 5)]  # 10.0 .. 99.5 (wider range for better recall)
     cands: list[tuple[float, float, dict]] = []
     constrained: list[tuple[float, float, dict]] = []
 

@@ -194,3 +194,29 @@ See `docs/AI.md` for corrected CLI examples for `tools/preprocess_cic.py` and `t
 
 Offline AI preprocessing, training, scoring and evaluation are available. See [docs/AI.md](docs/AI.md) for full commands and paths to model and report artifacts.
 
+### Final Default Model (One Command)
+
+After promoting the final model to `data/models/cic_supervised_model_v3.pkl`, run:
+
+```bash
+make ai_default
+```
+
+This runs both:
+
+- evaluation report -> `reports/cic_ai_report_v3.json`
+- scored test CSV -> `reports/candidate_default_eval.csv`
+
+Optional single-step targets:
+
+```bash
+make ai_eval
+make ai_score
+```
+
+If your virtualenv is in a different path, override python executable:
+
+```bash
+make ai_default PYTHON=python3
+```
+

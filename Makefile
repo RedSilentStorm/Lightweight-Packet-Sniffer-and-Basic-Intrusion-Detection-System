@@ -2,6 +2,12 @@ CC = gcc
 CFLAGS = -Wall -Wextra -Werror -std=c11 -D_DEFAULT_SOURCE -Iinclude
 LDFLAGS = -lpcap -lm
 
+PYTHON ?= .venv/bin/python
+AI_MODEL ?= data/models/cic_supervised_model_v3.pkl
+AI_TEST_CSV ?= data/processed/test.csv
+AI_REPORT ?= reports/cic_ai_report_v3.json
+AI_SCORE_OUT ?= reports/candidate_default_eval.csv
+
 APP_TARGET = bin/packet_ids
 APP_SRC = src/packet_ids_cli.c src/ids_tracker.c src/alert_logger.c src/alert_export.c src/parse_utils.c src/packet_parser.c src/capture_source.c src/bpf_filter.c src/perf_metrics.c src/rule_engine.c
 
@@ -24,7 +30,7 @@ REPLAY_DEMO_SRC = src/ids_live_or_pcap.c src/ids_tracker.c src/alert_logger.c sr
 INTEGRATION_TEST_TARGET = bin/pcap_integration_test
 INTEGRATION_TEST_SRC = tests/pcap_integration_test.c
 
-.PHONY: all app setup_check list_interfaces capture_basic parse_headers_demo ids_rule_demo tracker_test rule_engine_test replay_demo integration_test clean
+.PHONY: all app setup_check list_interfaces capture_basic parse_headers_demo ids_rule_demo tracker_test rule_engine_test replay_demo integration_test ai_eval ai_score ai_default clean
 
 all: app
 
@@ -48,6 +54,16 @@ replay_demo: $(REPLAY_DEMO_TARGET)
 
 integration_test: $(INTEGRATION_TEST_TARGET) $(REPLAY_DEMO_TARGET)
 	./$(INTEGRATION_TEST_TARGET)
+
+ai_eval:
+	$(PYTHON) tools/cic_ai_v3.py evaluate --model $(AI_MODEL) --test-csv $(AI_TEST_CSV) --report $(AI_REPORT)
+
+ai_score:
+	$(PYTHON) tools/cic_ai_v3.py score --input-csv $(AI_TEST_CSV) --model $(AI_MODEL) --output $(AI_SCORE_OUT)
+
+ai_default: ai_eval ai_score
+	@echo "Done. Report: $(AI_REPORT)"
+	@echo "Done. Scored CSV: $(AI_SCORE_OUT)"
 
 $(APP_TARGET): $(APP_SRC)
 	@mkdir -p bin
