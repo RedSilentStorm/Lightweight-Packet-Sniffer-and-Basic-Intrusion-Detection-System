@@ -35,32 +35,76 @@ DEFAULT_PREDICTIONS_PATH = ROOT / "reports" / "cic_predictions.csv"
 
 NEGATIVE_LABELS = {"0", "BENIGN", "NORMAL"}
 
+# Removed low-discriminatory features:
+# - TCP Flag counts (SYN, ACK, FIN, etc.) - 0% delta benign vs attack
+# - Bulk rate features (100% zero)
+# - Weak features (Down/Up Ratio 4.4%, Init_Win_bytes_forward 3.7%)
+# - Min Packet Length (high zero rate, 88.9% delta)
+# Added high-impact features:
+# - Idle Std (2558% delta)
+# - Packet Length Variance (1523% delta)
+# - Active Std (772% delta)
+# - Fwd IAT Std (246% delta)
+# - Idle Max (171% delta)
+
 DEFAULT_FEATURES = [
-    "Destination Port",
-    "Flow Duration",
-    "Total Fwd Packets",
-    "Total Backward Packets",
-    "Total Length of Fwd Packets",
-    "Total Length of Bwd Packets",
-    "Fwd Packet Length Max",
-    "Fwd Packet Length Mean",
-    "Fwd Packet Length Std",
-    "Bwd Packet Length Max",
-    "Bwd Packet Length Mean",
-    "Bwd Packet Length Std",
-    "Flow Bytes/s",
-    "Flow Packets/s",
-    "Flow IAT Mean",
-    "Flow IAT Std",
-    "Packet Length Mean",
-    "Packet Length Std",
-    "SYN Flag Count",
-    "ACK Flag Count",
-    "Down/Up Ratio",
-    "Init_Win_bytes_forward",
-    "Init_Win_bytes_backward",
-    "Active Mean",
-    "Idle Mean",
+    # Packet size features (high delta)
+    "Bwd Packet Length Max",        # 542.7% delta
+    "Bwd Packet Length Mean",       # 406.0% delta
+    "Bwd Packet Length Std",        # 408.6% delta
+    "Packet Length Max",            # 379.1% delta
+    "Packet Length Mean",           # 225.6% delta
+    "Packet Length Std",            # 399.0% delta
+    "Packet Length Variance",       # 1523.9% delta - CRITICAL
+    "Max Packet Length",            # 379.1% delta
+    "Average Packet Size",          # 213.5% delta
+    "Avg Bwd Segment Size",         # 406.0% delta
+    "Avg Fwd Segment Size",         # 64.4% delta
+    
+    # Flow timing features (high delta)
+    "Flow Duration",                # 86.5% delta
+    "Flow IAT Max",                 # 351.0% delta
+    "Flow IAT Mean",                # 166.6% delta
+    "Flow IAT Min",                 # 80.1% delta
+    "Flow IAT Std",                 # 343.4% delta
+    "Fwd IAT Max",                  # 397.4% delta
+    "Fwd IAT Mean",                 # 153.9% delta
+    "Fwd IAT Std",                  # 246.3% delta
+    "Bwd IAT Max",                  # 143.2% delta
+    "Bwd IAT Mean",                 # 22.6% delta
+    "Bwd IAT Std",                  # 41.5% delta
+    
+    # Activity pattern features (very high delta)
+    "Idle Std",                     # 2558.6% delta - CRITICAL
+    "Idle Max",                     # 171.7% delta
+    "Idle Mean",                    # 165.5% delta
+    "Active Std",                   # 772.4% delta - CRITICAL
+    "Active Max",                   # 61.9% delta
+    "Active Mean",                  # 23.2% delta
+    
+    # Traffic flow features
+    "Total Fwd Packets",            # 67.2% delta
+    "Total Backward Packets",       # 76.0% delta
+    "Total Length of Fwd Packets",  # 77.0% delta
+    "Total Length of Bwd Packets",  # 78.0% delta
+    "Fwd Packets/s",                # 76.6% delta
+    "Bwd Packets/s",                # 91.4% delta
+    "Flow Bytes/s",                 # 73.2% delta
+    "Flow Packets/s",               # 74.6% delta
+    
+    # Connection establishment
+    "Destination Port",             # 72.0% delta
+    "Subflow Fwd Packets",          # 67.2% delta
+    "Subflow Bwd Packets",          # 76.0% delta
+    "Subflow Fwd Bytes",            # 77.0% delta
+    "Subflow Bwd Bytes",            # 78.0% delta
+    "Fwd Header Length",            # 60.3% delta
+    "Bwd Header Length",            # 69.8% delta
+    "Init_Win_bytes_backward",      # 78.3% delta
+    "Min Segment Size",             # 2.8% delta
+    
+    # Activity data
+    "act_data_pkt_fwd",             # 77.8% delta
 ]
 
 
