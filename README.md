@@ -38,6 +38,28 @@ Main binary:
 ./bin/packet_ids
 ```
 
+## Desktop UI
+
+The project also includes a local desktop control panel built with PySide6. It is not a web app.
+
+Setup:
+
+```bash
+make ui_setup
+```
+
+Run:
+
+```bash
+make ui
+```
+
+`make ui` now prepares live-capture permissions automatically (sudo may prompt once) so live features can run from the desktop app.
+
+The UI can launch live capture or replay, refresh interfaces, and stream packet and alert output in a dashboard view.
+
+It also exposes the rest of the project from buttons inside the app, including the setup check, demos, tests, integration run, and AI evaluation/scoring targets.
+
 ## CLI Commands
 
 ### 1) List interfaces

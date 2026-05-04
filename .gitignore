@@ -96,6 +96,7 @@ __pycache__/
 .coverage.*
 htmlcov/
 .venv/
+.venv-ui/
 venv/
 env/
 ENV/
@@ -115,6 +116,8 @@ ENV/
 *.run.xml
 *.synctex.gz
 *.toc
+
+
 
 # =============================
 # Miscellaneous temporary files

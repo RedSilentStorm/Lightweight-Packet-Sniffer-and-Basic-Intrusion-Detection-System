@@ -3,6 +3,7 @@ CFLAGS = -Wall -Wextra -Werror -std=c11 -D_DEFAULT_SOURCE -Iinclude
 LDFLAGS = -lpcap -lm
 
 PYTHON ?= .venv/bin/python
+UI_PYTHON ?= .venv-ui/bin/python
 AI_MODEL ?= data/models/cic_supervised_model_v3.pkl
 AI_TEST_CSV ?= data/processed/test.csv
 AI_REPORT ?= reports/cic_ai_report_v3.json
@@ -30,7 +31,7 @@ REPLAY_DEMO_SRC = src/ids_live_or_pcap.c src/ids_tracker.c src/alert_logger.c sr
 INTEGRATION_TEST_TARGET = bin/pcap_integration_test
 INTEGRATION_TEST_SRC = tests/pcap_integration_test.c
 
-.PHONY: all app setup_check list_interfaces capture_basic parse_headers_demo ids_rule_demo tracker_test rule_engine_test replay_demo integration_test ai_eval ai_score ai_default clean
+.PHONY: all app setup_check list_interfaces capture_basic parse_headers_demo ids_rule_demo tracker_test rule_engine_test replay_demo integration_test ui_setup ui_bins ui_permissions ui ai_eval ai_score ai_default clean
 
 all: app
 
@@ -54,6 +55,25 @@ replay_demo: $(REPLAY_DEMO_TARGET)
 
 integration_test: $(INTEGRATION_TEST_TARGET) $(REPLAY_DEMO_TARGET)
 	./$(INTEGRATION_TEST_TARGET)
+
+ui_setup:
+	python3 -m venv .venv-ui
+	.venv-ui/bin/pip install -r requirements.txt
+
+ui_bins: app setup_check list_interfaces capture_basic parse_headers_demo ids_rule_demo replay_demo tracker_test rule_engine_test
+
+ui_permissions: ui_bins
+	@echo "Checking capture permissions for live features..."
+	@for f in bin/packet_ids bin/live_capture_basic bin/packet_header_parser_demo bin/ids_live_rule_demo bin/ids_live_or_pcap; do \
+		if [ -x $$f ] && ! getcap $$f | grep -q "cap_net_raw"; then \
+			echo "Granting capabilities on $$f (sudo may prompt)..."; \
+			sudo setcap cap_net_raw,cap_net_admin=eip $$f; \
+		fi; \
+	done
+
+ui: ui_permissions
+	@if [ ! -x .venv-ui/bin/python ]; then $(MAKE) ui_setup; fi
+	$(UI_PYTHON) tools/desktop_ui.py
 
 ai_eval:
 	$(PYTHON) tools/cic_ai_v3.py evaluate --model $(AI_MODEL) --test-csv $(AI_TEST_CSV) --report $(AI_REPORT)
